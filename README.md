@@ -17,7 +17,8 @@ This project is a Node.js server that integrates:
 ---
 
 ## 📽 Demo
-<img width="1053" alt="nebula_demo_thumbnail" src="https://github.com/user-attachments/assets/3fa7e220-ff8c-4d94-94fe-7dc4b39158cf" />
+<img width="1053" alt="nebula_demo_thumbnail" src="https://github.com/user-attachments/assets/b1ea333d-5965-45db-9abd-513b66466530" />
+
 ---
 
 ## 📦 Tech Stack
