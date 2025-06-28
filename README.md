@@ -17,11 +17,7 @@ This project is a Node.js server that integrates:
 ---
 
 ## 📽 Demo
-
-[![Watch the demo](https://img.youtube.com/vi/YOUR_VIDEO_ID_HERE/0.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID_HERE)
-
-> Click the image above to watch the full demo on YouTube.
-
+<img width="1053" alt="nebula_demo_thumbnail" src="https://github.com/user-attachments/assets/3fa7e220-ff8c-4d94-94fe-7dc4b39158cf" />
 ---
 
 ## 📦 Tech Stack
