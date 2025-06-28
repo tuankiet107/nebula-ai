@@ -1,17 +1,32 @@
 import dotenv from "dotenv";
 import { createThirdwebClient } from "thirdweb";
 import { Nebula } from "thirdweb/ai";
-import { sepolia, baseSepolia } from "thirdweb/chains";
+import { sepolia, baseSepolia, optimismSepolia } from "thirdweb/chains";
 import { privateKeyToAccount } from "thirdweb/wallets";
 
-import { User } from "../../db/models/user";
+import { PendingType, User } from "../../db/models/user";
 import { decryptPrivateKey } from "../../helpers/bycrypt";
 import { ancient8Testnet } from "../../helpers/ancient8";
 import { WARNING_HELP_MSG } from "../../constants/message";
+import { sendMsgToTeleBot } from "./Telegram";
+import { SendTransactionResult } from "thirdweb/dist/types/transaction/types";
+import { NebulaExecuteQuery } from "../../types/nebula";
 
 dotenv.config();
 
-const CHAINS_SUPPORTS = [sepolia, baseSepolia, ancient8Testnet];
+type ExecuteConfirmResponse = {
+  message: string;
+  actions: any[];
+  session_id: string;
+  request_id: string;
+};
+
+const CHAINS_SUPPORTS = [
+  sepolia,
+  baseSepolia,
+  ancient8Testnet,
+  optimismSepolia,
+];
 
 class NebulaService {
   private client: any;
@@ -21,18 +36,21 @@ class NebulaService {
     });
   }
 
-  async handleChat(message: string) {
+  async handleChat(message: string, username: string) {
     return await Nebula.chat({
       client: this.client,
       message,
       contextFilter: { chains: CHAINS_SUPPORTS },
+      // sessionId,
     });
   }
 
-  // Note: Currently, can not create session and
-  // config mode (default is client - need confirm answer) for auto confirm instead of responding for confirming
-  // with using SDK, we need to use API
-  async handleExecute(message: string, username: string) {
+  async handleExecute({
+    message,
+    username,
+    chatId,
+    sessionId,
+  }: NebulaExecuteQuery) {
     const user = await User.findOne({ username });
     if (!user || !user.walletAddress || !user.privateKey) {
       return {
@@ -41,27 +59,43 @@ class NebulaService {
     }
 
     const decryptedPrivateKey = decryptPrivateKey(user.privateKey);
-
     const account = privateKeyToAccount({
       client: this.client,
       privateKey: decryptedPrivateKey,
     });
 
     try {
-      const result = await Nebula.execute({
+      const result: any = await Nebula.execute({
         client: this.client,
         account,
         message,
-        sessionId: username,
         contextFilter: { chains: CHAINS_SUPPORTS },
+        sessionId,
       });
-      console.log("result: ", result);
-      return {
-        message: `✅ Transaction success: ${JSON.stringify(result)}`,
-      };
+
+      if (result?.actions && result.actions.length > 0) {
+        const user = await User.findOne({ username });
+        if (user) {
+          user.pendingAction = {
+            type: PendingType.confirm,
+            message: result.message,
+            sessionId: result.session_id,
+          };
+          await user.save();
+        }
+
+        return {
+          message: `${result.message}\n\n ⚠️ Please confirm by typing "Yes" - "Confirmed" to continue execute transaction or "No" to cancel.`,
+        };
+      }
+
+      return { message: `✅ Transaction success: ${JSON.stringify(result)}` };
     } catch (error) {
-      console.log("error: ", error);
-      return { message: `❌ Transaction fail: ${error.message}` };
+      console.error("Execution error:", error);
+      await sendMsgToTeleBot(
+        chatId,
+        `⚠️ Transaction attempt failed. ${error.message}`
+      );
     }
   }
 }

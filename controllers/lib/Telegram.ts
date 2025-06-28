@@ -1,6 +1,6 @@
 import axios from "axios";
 import dotenv from "dotenv";
-import { User } from "../../db/models/user";
+import { PendingType, User } from "../../db/models/user";
 import { nebulaService } from "./Nebula";
 import { encryptPrivateKey } from "../../helpers/bycrypt";
 import {
@@ -16,8 +16,58 @@ dotenv.config();
 
 const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
 
-export const handleMessage = async (text: string, username: string) => {
+export const handleMessage = async (
+  text: string,
+  username: string,
+  chatId: number
+): Promise<{ message: string; status?: string }> => {
+  const user = await User.findOne({ username });
+  if (user?.pendingAction?.type === PendingType.confirm) {
+    // Check confirm transaction
+    // TODO: Enhance validate text better
+    if (text.toLowerCase() === "yes" || text.toLowerCase() === "confirmed") {
+      const user = await User.findOne({ username });
+      if (
+        !user ||
+        !user.pendingAction ||
+        user.pendingAction.type !== PendingType.confirm
+      ) {
+        return {
+          message:
+            "⚠️ No pending action to confirm. Please start a new request.",
+        };
+      }
+
+      const result = await nebulaService.handleExecute({
+        message: "Confirm transaction",
+        username,
+        chatId,
+        sessionId: user.pendingAction.sessionId,
+      });
+
+      user.pendingAction = null;
+      await user.save();
+
+      return { message: `✅ Transaction confirmed: ${JSON.stringify(result)}` };
+    }
+    if (text.toLowerCase() === "no") {
+      const user = await User.findOne({ username });
+      if (user && user.pendingAction) {
+        user.pendingAction = null;
+        await user.save();
+
+        return {
+          message: "❌ Transaction canceled.",
+        };
+      }
+    }
+  }
+
   if (text === "/start" || text === "/help") {
+    if (user) {
+      user.pendingAction = null;
+      await user.save();
+    }
     return {
       message: WELCOME_MSG,
     };
@@ -61,12 +111,16 @@ export const handleMessage = async (text: string, username: string) => {
   if (
     text.toLowerCase().includes("/swap") ||
     text.toLowerCase().includes("/bridge") ||
-    text.toLowerCase().includes("/send")
+    text.toLowerCase().includes("/transfer")
   ) {
-    return await nebulaService.handleExecute(text, username);
+    return await nebulaService.handleExecute({
+      message: text,
+      username,
+      chatId,
+    });
   }
 
-  return await nebulaService.handleChat(text);
+  return await nebulaService.handleChat(text, username);
 };
 
 export const sendMsgToTeleBot = async (chatId: number, text: string) => {

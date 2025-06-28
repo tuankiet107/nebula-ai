@@ -24,6 +24,6 @@
     "dotenv": "^16.4.7",
     "express": "^4.17.1",
     "mongoose": "^8.11.0",
-    "thirdweb": "^5.88.7"
+    "thirdweb": "^5.92.1"
   }
 }
